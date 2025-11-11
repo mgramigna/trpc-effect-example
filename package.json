@@ -1,0 +1,11 @@
+{
+  "name": "trpc-effect-example",
+  "private": true,
+  "scripts": {
+    "dev": "bun --filter=* dev",
+    "typecheck": "bun --filter=* typecheck"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
+}

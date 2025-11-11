@@ -1,0 +1,22 @@
+{
+  "name": "@trpc-effect-example/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    "./router": "./src/trpc/router.ts"
+  },
+  "scripts": {
+    "dev": "bun run --hot ./src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trpc/server": "11.7.1",
+    "cors": "^2.8.5",
+    "effect": "3.19.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "typescript": "5.9.3"
+  }
+}
