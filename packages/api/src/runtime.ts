@@ -2,13 +2,16 @@ import { TRPCError } from "@trpc/server";
 import { Effect, Either, ManagedRuntime } from "effect";
 import { ExampleService } from "./services/example";
 
-export const serverRuntime = ManagedRuntime.make(ExampleService.Default);
+const serverRuntime = ManagedRuntime.make(ExampleService.Default);
 
-export const runEffect = async <A, E, R>(
-  runtime: ManagedRuntime.ManagedRuntime<R, never>,
+export const runEffect = async <
+  A,
+  E,
+  R extends ManagedRuntime.ManagedRuntime.Context<typeof serverRuntime>,
+>(
   effect: Effect.Effect<A, E, R>,
 ) => {
-  const result = await runtime.runPromise(effect.pipe(Effect.either));
+  const result = await serverRuntime.runPromise(effect.pipe(Effect.either));
 
   if (Either.isLeft(result)) {
     const error = result.left;

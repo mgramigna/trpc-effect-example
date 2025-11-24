@@ -1,7 +1,7 @@
 import { initTRPC } from "@trpc/server";
-import { serverRuntime } from "../runtime";
+import { runEffect } from "../runtime";
 
-export const createContext = () => ({ runtime: serverRuntime });
+export const createContext = () => ({ runEffect });
 
 type Context = ReturnType<typeof createContext>;
 

@@ -18,6 +18,8 @@ export class ExampleService extends Effect.Service<ExampleService>()(
             new ExampleError({ message: "Random failure occurred" }),
           );
         }
+
+        return yield* Effect.succeed("success" as const);
       }),
     },
   },
