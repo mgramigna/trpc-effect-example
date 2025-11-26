@@ -15,7 +15,7 @@ export const appRouter = createTRPCRouter({
     return res;
   }),
   mutate: publicProcedure.mutation(async ({ ctx }) => {
-    const res = await ctx.runEffect(
+    await ctx.runEffect(
       Effect.gen(function* () {
         const service = yield* ExampleService;
         return yield* service.mutate();
@@ -31,8 +31,6 @@ export const appRouter = createTRPCRouter({
         ),
       ),
     );
-
-    return res;
   }),
 });
 

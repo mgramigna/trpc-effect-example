@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { Effect, Either, ManagedRuntime } from "effect";
+import { Cause, Effect, Exit, ManagedRuntime } from "effect";
 import { ExampleService } from "./services/example";
 
 const serverRuntime = ManagedRuntime.make(ExampleService.Default);
@@ -11,21 +11,34 @@ export const runEffect = async <
 >(
   effect: Effect.Effect<A, E, R>,
 ) => {
-  const result = await serverRuntime.runPromise(effect.pipe(Effect.either));
+  const exit = await serverRuntime.runPromiseExit(effect);
 
-  if (Either.isLeft(result)) {
-    const error = result.left;
+  if (Exit.isFailure(exit)) {
+    const cause = exit.cause;
 
-    if (error instanceof TRPCError) {
-      throw error;
+    if (Cause.isFailType(cause)) {
+      const originalError = cause.error;
+
+      if (originalError instanceof TRPCError) {
+        console.error("Handled trpc error", originalError);
+        throw originalError;
+      }
+
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "An unknown error occurred",
+        cause: originalError,
+      });
     }
+
+    const squashedCause = Cause.squash(exit.cause);
 
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: "An unknown error occurred",
-      cause: error,
+      message: "An un-recoverable error occurred",
+      cause: squashedCause,
     });
   }
 
-  return result.right;
+  return exit.value;
 };

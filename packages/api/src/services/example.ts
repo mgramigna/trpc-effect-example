@@ -19,7 +19,7 @@ export class ExampleService extends Effect.Service<ExampleService>()(
           );
         }
 
-        return yield* Effect.succeed("success" as const);
+        return yield* Effect.die(new Error("Unexpected error occurred"));
       }),
     },
   },

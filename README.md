@@ -32,25 +32,16 @@ trpc-effect-example/
 From the project root:
 
 ```bash
-bun install # Installs all dependencies in the monorepo
+bun install
 ```
 
-### Running the Backend (API)
+### Running the Backend and Web App
 
 ```bash
-cd packages/api
-bun run dev
+bun dev
 ```
 
 The tRPC server will start on [http://localhost:3001](http://localhost:3001).
-
-### Running the Frontend (WWW)
-
-```bash
-cd packages/www
-bun run dev
-```
-
 The React app will start on [http://localhost:5173](http://localhost:5173) (default Vite port).
 
 ### Type Checking
@@ -95,13 +86,12 @@ This example demonstrates a modern approach to backend design by integrating [Ef
     ) {}
     ```
 
-- **tRPC Procedures Use Effect:**
-  - tRPC procedures run Effect services using a helper (`runEffect`) and the injected runtime context:
+- **tRPC Procedures Use Effect via Context:**
+  - tRPC procedures use the injected context method `ctx.runEffect` to execute Effect-based business logic:
     ```ts
     // packages/api/src/trpc/router.ts
     ping: publicProcedure.query(async ({ ctx }) => {
-      const res = await runEffect(
-        ctx.runtime,
+      const res = await ctx.runEffect(
         Effect.gen(function* () {
           const service = yield* ExampleService;
           return yield* service.ping();
@@ -115,30 +105,30 @@ This example demonstrates a modern approach to backend design by integrating [Ef
   - Effect errors (like `ExampleError`) are caught and mapped to tRPC errors, preserving error semantics for the frontend:
     ```ts
     mutate: publicProcedure.mutation(async ({ ctx }) => {
-      const res = await runEffect(
-        ctx.runtime,
+      await ctx.runEffect(
         Effect.gen(function* () {
           const service = yield* ExampleService;
-          yield* service.mutate();
+          return yield* service.mutate();
         }).pipe(
           Effect.catchTag("ExampleError", (e) =>
-            Effect.fail(new TRPCError({
-              code: "INTERNAL_SERVER_ERROR",
-              message: "ExampleError encountered during mutation",
-              cause: e,
-            })),
+            Effect.fail(
+              new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: "ExampleError encountered during mutation",
+                cause: e,
+              }),
+            ),
           ),
         ),
       );
-      return res;
     }),
     ```
 
 - **Context Injection:**
-  - The tRPC context includes the Effect runtime, enabling dependency injection and effect management:
+  - The tRPC context provides the `runEffect` method, enabling dependency injection and effect management:
     ```ts
     // packages/api/src/trpc/trpc.ts
-    export const createContext = () => ({ runtime: serverRuntime });
+    export const createContext = () => ({ runEffect });
     ```
 
 ### Why This Matters
@@ -151,6 +141,75 @@ This example demonstrates a modern approach to backend design by integrating [Ef
 ### Frontend Interaction
 
 The frontend calls these tRPC procedures and receives results or errors as returned by the Effect-powered backend. This enables robust, type-safe, and effectful APIs for modern full-stack TypeScript applications.
+
+---
+
+### The `runEffect` Helper
+
+To bridge Effect-based business logic with tRPC procedures, this project uses a
+helper called `runEffect`. This function executes an Effect, manages its
+runtime, and translates errors into tRPC-compatible errors for consistent API
+responses.
+
+#### Definition
+
+```ts
+// packages/api/src/runtime.ts
+export const runEffect = async <
+  A,
+  E,
+  R extends ManagedRuntime.ManagedRuntime.Context<typeof serverRuntime>,
+>(
+  effect: Effect.Effect<A, E, R>,
+) => {
+  const exit = await serverRuntime.runPromiseExit(effect);
+
+  if (Exit.isFailure(exit)) {
+    const cause = exit.cause;
+
+    if (Cause.isFailType(cause)) {
+      const originalError = cause.error;
+
+      if (originalError instanceof TRPCError) {
+        console.error("Handled trpc error", originalError);
+        throw originalError;
+      }
+
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "An unknown error occurred",
+        cause: originalError,
+      });
+    }
+
+    const squashedCause = Cause.squash(exit.cause);
+
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "An un-recoverable error occurred",
+      cause: squashedCause,
+    });
+  }
+
+  return exit.value;
+};
+```
+
+#### What It Does
+
+- **Executes Effects:** Runs an Effect using the managed runtime, handling all dependencies and context.
+- **Error Translation:** If the Effect fails, it inspects the error cause:
+  - If the error is already a `TRPCError`, it rethrows it for tRPC to handle.
+  - Otherwise, it wraps unknown or unrecoverable errors in a new `TRPCError` with appropriate messages and causes.
+- **Return Value:** On success, returns the value produced by the Effect.
+
+#### Why It’s Needed
+
+- **Seamless Integration:** Allows tRPC procedures to use Effect-based business logic while ensuring errors are surfaced in a way the frontend can understand.
+- **Consistent Error Handling:** Guarantees that all errors crossing the API boundary are tRPC errors, preserving error semantics and type safety.
+- **Runtime Management:** Encapsulates the complexity of running Effects and managing their context, keeping procedures clean and focused.
+
+---
 
 ## Scripts
 
